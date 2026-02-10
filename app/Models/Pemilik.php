@@ -11,8 +11,14 @@ class Pemilik extends Model
     protected $fillable = [
         'user_id',
         'name',
-        'contact_info',
+        'no_wa',
+        'address',
     ];
+
+    public function user()
+    {
+        return $this->belongsTo(User::class, 'user_id', 'id');
+    }
 
     public function kos()
     {
