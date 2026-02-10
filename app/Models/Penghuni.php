@@ -11,6 +11,7 @@ class Penghuni extends Model
     public $incrementing = false;
 
     protected $fillable = [
+        'user_id',
         'name',
         'no_wa',
         'address',

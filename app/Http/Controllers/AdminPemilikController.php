@@ -37,7 +37,7 @@ class AdminPemilikController extends Controller
     public function update(Request $request, $id)
     {
         $request->validate([
-            'user_id' => 'required|exists:users,id|unique:pemilik,user_id,' . $id,
+            'user_id' => 'required|exists:users,id|unique:pemilik,user_id,' . $id . ',user_id',
             'name' => 'required|string|max:255',
             'no_wa' => 'nullable|string|max:20',
             'address' => 'nullable|string|max:500',
@@ -51,9 +51,8 @@ class AdminPemilikController extends Controller
 
     public function destroy($id)
     {
-        // Logic to delete a pemilik
-        // $pemilik = Pemilik::findOrFail($id);
-        // $pemilik->delete();
+        $pemilik = Pemilik::findOrFail($id);
+        $pemilik->delete();
         return redirect()->back()->with('success', 'Pemilik deleted successfully.');
     }
 }
