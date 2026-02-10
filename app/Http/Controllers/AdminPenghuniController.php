@@ -47,7 +47,7 @@ class AdminPenghuniController extends Controller
     public function update(Request $request, $id)
     {
         $request->validate([
-            'user_id' => 'required|exists:users,id|unique:penghuni,user_id,' . $id,
+            'user_id' => 'required|exists:users,id|unique:penghuni,user_id,' . $id . ',user_id',
             'name' => 'required|string|max:255',
             'no_wa' => 'nullable|string|max:20',
             'address' => 'nullable|string',
