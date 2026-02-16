@@ -34,39 +34,14 @@ export interface User {
     username: string;
     email: string;
     avatar?: string;
-    email_verified_at: string | null;
+    email_verified_at?: string | null;
     two_factor_enabled?: boolean;
-    created_at: string;
-    updated_at: string;
-    role: {
+    created_at?: string;
+    updated_at?: string;
+    role?: {
         name: string;
     };
     [key: string]: unknown;
-}
-
-export interface Kos {
-    id: number;
-    name: string;
-    address: string;
-    owner_id: number;
-    owner: {
-        name: string;
-        user: {
-            email: string;
-        };
-    };
-}
-
-export interface Room {
-    id: number;
-    kos_id: number;
-    room_number: string;
-    monthly_rate: number;
-    status: string;
-    description: string | null;
-    kos: {
-        name: string;
-    };
 }
 
 export interface Pemilik {
@@ -75,7 +50,36 @@ export interface Pemilik {
     name: string;
     no_wa: string | null;
     address: string | null;
-    user: {
-        email: string;
-    };
+    user: User;
+}
+
+export interface Kos {
+    id: number;
+    owner_id: number;
+    name: string;
+    address: string;
+    description: string;
+    slug: string;
+    image: string;
+    owner: Pemilik;
+    rooms?: Room[];
+}
+
+export interface TypeKamar {
+    id: number;
+    nama: string;
+    harga: number;
+}
+
+export interface Room {
+    id: number;
+    kos_id: number;
+    room_number: string;
+    type_kamar_id: number | null;
+    status: string;
+    description: string | null;
+    image: string | null;
+    kos: Kos;
+    typeKamar?: TypeKamar;
+    images?: { id: number; gambar: string }[];
 }

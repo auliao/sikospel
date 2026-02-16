@@ -2,13 +2,13 @@ import { Head, useForm, router } from '@inertiajs/react';
 import { Plus, Trash2, Edit, MoreHorizontal, Image as ImageIcon } from 'lucide-react';
 import { useState } from 'react';
 import { ColumnDef } from '@tanstack/react-table';
-
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ConfirmDialog } from '@/components/app/confirm-dialog';
 import AppLayout from '@/layouts/app-layout';
-import { type BreadcrumbItem } from '@/types';
+import { type BreadcrumbItem, type Room, type Kos, type TypeKamar } from '@/types';
+import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DataTable } from '@/components/ui/data-table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -26,33 +26,6 @@ const breadcrumbs: BreadcrumbItem[] = [
     },
 ];
 
-interface Kos {
-    id: number;
-    name: string;
-}
-
-interface TypeKamar {
-    id: number;
-    nama: string;
-    harga: number;
-}
-
-interface RoomImage {
-    id: number;
-    gambar: string;
-}
-
-interface Room {
-    id: number;
-    kos_id: number;
-    room_number: string;
-    type_kamar_id: number;
-    status: string;
-    kos: Kos;
-    type_kamar: TypeKamar;
-    images: RoomImage[];
-}
-
 interface Props {
     rooms: Room[];
     kos: Kos[];
@@ -65,6 +38,7 @@ export default function Index({ rooms, kos, typeKamars }: Props) {
         room_number: '',
         type_kamar_id: '',
         status: 'tersedia',
+        image: null as File | null,
         images: [] as File[],
     });
 
@@ -75,7 +49,9 @@ export default function Index({ rooms, kos, typeKamars }: Props) {
         room_number: '',
         type_kamar_id: '',
         status: '',
+        image: null as File | null,
         images: [] as File[],
+        _method: 'PUT',
     });
 
     // Delete confirmation state
@@ -86,6 +62,7 @@ export default function Index({ rooms, kos, typeKamars }: Props) {
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         post('/admin/room', {
+            forceFormData: true,
             onSuccess: () => {
                 reset();
                 setShowCreateModal(false);
@@ -100,7 +77,9 @@ export default function Index({ rooms, kos, typeKamars }: Props) {
             room_number: item.room_number,
             type_kamar_id: item.type_kamar_id?.toString() || '',
             status: item.status,
+            image: null,
             images: [],
+            _method: 'PUT',
         });
     };
 
@@ -111,16 +90,14 @@ export default function Index({ rooms, kos, typeKamars }: Props) {
             room_number: '',
             type_kamar_id: '',
             status: '',
+            image: null,
             images: [],
+            _method: 'PUT',
         });
     };
 
     const handleUpdate = (id: number) => {
-        // Use post with _method=PUT for multipart/form-data support in Laravel
-        router.post(`/admin/room/${id}`, {
-            ...editData,
-            _method: 'PUT'
-        }, {
+        router.post(`/admin/room/${id}`, editData, {
             forceFormData: true,
             onSuccess: () => {
                 setEditingId(null);
@@ -129,7 +106,9 @@ export default function Index({ rooms, kos, typeKamars }: Props) {
                     room_number: '',
                     type_kamar_id: '',
                     status: '',
+                    image: null,
                     images: [],
+                    _method: 'PUT',
                 });
             },
         });
@@ -158,9 +137,22 @@ export default function Index({ rooms, kos, typeKamars }: Props) {
 
     const columns: ColumnDef<Room>[] = [
         {
+            accessorKey: 'image',
+            header: 'Foto',
+            cell: ({ row }) => (
+                <div className="size-12 overflow-hidden rounded-md border bg-neutral-100">
+                    {row.getValue('image') ? (
+                        <img src={`/storage/${row.getValue('image')}`} alt="" className="h-full w-full object-cover" />
+                    ) : (
+                        <div className="flex h-full w-full items-center justify-center text-[10px] text-neutral-400">No Image</div>
+                    )}
+                </div>
+            ),
+        },
+        {
             accessorKey: 'room_number',
             header: 'No. Kamar',
-            cell: ({ row }) => <div className="font-medium">{row.getValue('room_number')}</div>,
+            cell: ({ row }) => <div className="font-medium text-primary">{row.getValue('room_number')}</div>,
         },
         {
             accessorKey: 'kos.name',
@@ -171,7 +163,7 @@ export default function Index({ rooms, kos, typeKamars }: Props) {
             header: 'Gambar',
             cell: ({ row }) => (
                 <div className="flex -space-x-2 overflow-hidden">
-                    {row.original.images.map((img, idx) => (
+                    {(row.original.images || []).map((img: any, idx: number) => (
                         <img
                             key={img.id}
                             src={`/storage/${img.gambar}`}
@@ -179,19 +171,19 @@ export default function Index({ rooms, kos, typeKamars }: Props) {
                             className="inline-block h-8 w-8 rounded-full ring-2 ring-background object-cover"
                         />
                     ))}
-                    {row.original.images.length === 0 && <span className="text-muted-foreground text-xs">No images</span>}
+                    {(!row.original.images || row.original.images.length === 0) && <span className="text-muted-foreground text-xs">No images</span>}
                 </div>
             ),
         },
         {
-            accessorKey: 'type_kamar',
+            accessorKey: 'typeKamar',
             header: 'Tipe Kamar',
-            cell: ({ row }) => <div className="font-medium">{row.original.type_kamar?.nama || '-'}</div>,
+            cell: ({ row }) => <div className="font-medium">{row.original.typeKamar?.nama || '-'}</div>,
         },
         {
-            accessorKey: 'type_kamar.harga',
+            accessorKey: 'typeKamar.harga',
             header: 'Harga/Bulan',
-            cell: ({ row }) => <div>Rp{Number(row.original.type_kamar?.harga || 0).toLocaleString('id-ID')}</div>,
+            cell: ({ row }) => <div>Rp{Number(row.original.typeKamar?.harga || 0).toLocaleString('id-ID')}</div>,
         },
         {
             accessorKey: 'status',
@@ -252,7 +244,7 @@ export default function Index({ rooms, kos, typeKamars }: Props) {
                         columns={columns}
                         data={rooms}
                         headerAction={
-                            <Button onClick={() => setShowCreateModal(true)}>
+                            <Button onClick={() => setShowCreateModal(true)} className="bg-primary hover:bg-primary/90 text-white">
                                 <Plus className="h-4 w-4" />
                                 Tambah
                             </Button>
@@ -317,8 +309,7 @@ export default function Index({ rooms, kos, typeKamars }: Props) {
                                     </SelectTrigger>
                                     <SelectContent>
                                         <SelectItem value="tersedia">Tersedia</SelectItem>
-                                        <SelectItem value="terisi">Terisi</SelectItem>
-                                        <SelectItem value="perbaikan">Perbaikan</SelectItem>
+                                        <SelectItem value="ditempati">Ditempati</SelectItem>
                                     </SelectContent>
                                 </Select>
                                 {errors.status && <p className="text-sm text-red-600">{errors.status}</p>}
@@ -337,11 +328,21 @@ export default function Index({ rooms, kos, typeKamars }: Props) {
                                 />
                                 {errors.images && <p className="text-sm text-red-600">{errors.images}</p>}
                             </div>
+                            <div>
+                                <Label htmlFor="image">Foto Kamar</Label>
+                                <Input
+                                    id="image"
+                                    type="file"
+                                    accept="image/*"
+                                    onChange={(e) => setData('image', e.target.files ? e.target.files[0] : null)}
+                                />
+                                {errors.image && <p className="text-sm text-red-600">{errors.image}</p>}
+                            </div>
                             <div className="flex justify-end gap-2">
                                 <Button type="button" variant="outline" onClick={() => setShowCreateModal(false)}>
                                     Batal
                                 </Button>
-                                <Button type="submit" disabled={processing}>
+                                <Button type="submit" disabled={processing} className="bg-primary hover:bg-primary/90 text-white">
                                     Simpan
                                 </Button>
                             </div>
@@ -421,11 +422,20 @@ export default function Index({ rooms, kos, typeKamars }: Props) {
                                     className="cursor-pointer"
                                 />
                             </div>
+                            <div>
+                                <Label htmlFor="edit-image">Foto Kamar (Opsional)</Label>
+                                <Input
+                                    id="edit-image"
+                                    type="file"
+                                    accept="image/*"
+                                    onChange={(e) => setEditData({ ...editData, image: e.target.files ? e.target.files[0] : null })}
+                                />
+                            </div>
                             <div className="flex justify-end gap-2">
                                 <Button type="button" variant="outline" onClick={handleCancelEdit}>
                                     Batal
                                 </Button>
-                                <Button type="submit">
+                                <Button type="submit" className="bg-primary hover:bg-primary/90 text-white">
                                     Update
                                 </Button>
                             </div>
