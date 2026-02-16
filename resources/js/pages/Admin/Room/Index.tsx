@@ -1,5 +1,5 @@
 import { Head, useForm, router } from '@inertiajs/react';
-import { Plus, Trash2, Edit, MoreHorizontal } from 'lucide-react';
+import { Plus, Trash2, Edit, MoreHorizontal, Image as ImageIcon } from 'lucide-react';
 import { useState } from 'react';
 import { ColumnDef } from '@tanstack/react-table';
 import { Button } from '@/components/ui/button';
@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ConfirmDialog } from '@/components/app/confirm-dialog';
 import AppLayout from '@/layouts/app-layout';
-import { type BreadcrumbItem, type Room, type Kos, } from '@/types';
+import { type BreadcrumbItem, type Room, type Kos, type TypeKamar } from '@/types';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DataTable } from '@/components/ui/data-table';
@@ -29,16 +29,17 @@ const breadcrumbs: BreadcrumbItem[] = [
 interface Props {
     rooms: Room[];
     kos: Kos[];
+    typeKamars: TypeKamar[];
 }
 
-export default function Index({ rooms, kos }: Props) {
+export default function Index({ rooms, kos, typeKamars }: Props) {
     const { data, setData, post, processing, errors, reset } = useForm({
         kos_id: '',
         room_number: '',
-        description: '',
-        monthly_rate: '',
+        type_kamar_id: '',
         status: 'tersedia',
         image: null as File | null,
+        images: [] as File[],
     });
 
     const [showCreateModal, setShowCreateModal] = useState(false);
@@ -46,10 +47,10 @@ export default function Index({ rooms, kos }: Props) {
     const [editData, setEditData] = useState({
         kos_id: '',
         room_number: '',
-        description: '',
-        monthly_rate: '',
+        type_kamar_id: '',
         status: '',
         image: null as File | null,
+        images: [] as File[],
         _method: 'PUT',
     });
 
@@ -74,10 +75,10 @@ export default function Index({ rooms, kos }: Props) {
         setEditData({
             kos_id: item.kos_id.toString(),
             room_number: item.room_number,
-            description: item.description || '',
-            monthly_rate: item.monthly_rate.toString(),
+            type_kamar_id: item.type_kamar_id?.toString() || '',
             status: item.status,
             image: null,
+            images: [],
             _method: 'PUT',
         });
     };
@@ -87,10 +88,10 @@ export default function Index({ rooms, kos }: Props) {
         setEditData({
             kos_id: '',
             room_number: '',
-            description: '',
-            monthly_rate: '',
+            type_kamar_id: '',
             status: '',
             image: null,
+            images: [],
             _method: 'PUT',
         });
     };
@@ -103,10 +104,10 @@ export default function Index({ rooms, kos }: Props) {
                 setEditData({
                     kos_id: '',
                     room_number: '',
-                    description: '',
-                    monthly_rate: '',
+                    type_kamar_id: '',
                     status: '',
                     image: null,
+                    images: [],
                     _method: 'PUT',
                 });
             },
@@ -158,9 +159,31 @@ export default function Index({ rooms, kos }: Props) {
             header: 'Kos',
         },
         {
-            accessorKey: 'monthly_rate',
+            accessorKey: 'images',
+            header: 'Gambar',
+            cell: ({ row }) => (
+                <div className="flex -space-x-2 overflow-hidden">
+                    {(row.original.images || []).map((img: any, idx: number) => (
+                        <img
+                            key={img.id}
+                            src={`/storage/${img.gambar}`}
+                            alt={`Room ${idx}`}
+                            className="inline-block h-8 w-8 rounded-full ring-2 ring-background object-cover"
+                        />
+                    ))}
+                    {(!row.original.images || row.original.images.length === 0) && <span className="text-muted-foreground text-xs">No images</span>}
+                </div>
+            ),
+        },
+        {
+            accessorKey: 'typeKamar',
+            header: 'Tipe Kamar',
+            cell: ({ row }) => <div className="font-medium">{row.original.typeKamar?.nama || '-'}</div>,
+        },
+        {
+            accessorKey: 'typeKamar.harga',
             header: 'Harga/Bulan',
-            cell: ({ row }) => <div>Rp{Number(row.getValue('monthly_rate')).toLocaleString('id-ID')}</div>,
+            cell: ({ row }) => <div>Rp{Number(row.original.typeKamar?.harga || 0).toLocaleString('id-ID')}</div>,
         },
         {
             accessorKey: 'status',
@@ -175,11 +198,6 @@ export default function Index({ rooms, kos }: Props) {
 
                 return <Badge variant={variant}>{status}</Badge>;
             },
-        },
-        {
-            accessorKey: 'description',
-            header: 'Deskripsi',
-            cell: ({ row }) => <div className="max-w-[200px] truncate md:max-w-[300px]">{row.getValue('description')}</div>,
         },
         {
             id: 'actions',
@@ -268,15 +286,20 @@ export default function Index({ rooms, kos }: Props) {
                                 {errors.room_number && <p className="text-sm text-red-600">{errors.room_number}</p>}
                             </div>
                             <div>
-                                <Label htmlFor="monthly_rate">Harga per Bulan</Label>
-                                <Input
-                                    id="monthly_rate"
-                                    type="number"
-                                    value={data.monthly_rate}
-                                    onChange={(e) => setData('monthly_rate', e.target.value)}
-                                    placeholder="Harga"
-                                />
-                                {errors.monthly_rate && <p className="text-sm text-red-600">{errors.monthly_rate}</p>}
+                                <Label htmlFor="type_kamar_id">Tipe Kamar</Label>
+                                <Select value={data.type_kamar_id} onValueChange={(value) => setData('type_kamar_id', value)}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Pilih Tipe Kamar" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {typeKamars.map((type) => (
+                                            <SelectItem key={type.id} value={type.id.toString()}>
+                                                {type.nama} - Rp{Number(type.harga).toLocaleString('id-ID')}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                {errors.type_kamar_id && <p className="text-sm text-red-600">{errors.type_kamar_id}</p>}
                             </div>
                             <div>
                                 <Label htmlFor="status">Status</Label>
@@ -292,14 +315,18 @@ export default function Index({ rooms, kos }: Props) {
                                 {errors.status && <p className="text-sm text-red-600">{errors.status}</p>}
                             </div>
                             <div>
-                                <Label htmlFor="description">Deskripsi</Label>
-                                <Textarea
-                                    id="description"
-                                    value={data.description}
-                                    onChange={(e) => setData('description', e.target.value)}
-                                    placeholder="Deskripsi fasilitas dll"
+                                <Label htmlFor="images">Gambar Kamar</Label>
+                                <Input
+                                    id="images"
+                                    type="file"
+                                    multiple
+                                    onChange={(e) => {
+                                        const files = Array.from(e.target.files || []);
+                                        setData('images', files);
+                                    }}
+                                    className="cursor-pointer"
                                 />
-                                {errors.description && <p className="text-sm text-red-600">{errors.description}</p>}
+                                {errors.images && <p className="text-sm text-red-600">{errors.images}</p>}
                             </div>
                             <div>
                                 <Label htmlFor="image">Foto Kamar</Label>
@@ -355,14 +382,19 @@ export default function Index({ rooms, kos }: Props) {
                                 />
                             </div>
                             <div>
-                                <Label htmlFor="edit-monthly_rate">Harga per Bulan</Label>
-                                <Input
-                                    id="edit-monthly_rate"
-                                    type="number"
-                                    value={editData.monthly_rate}
-                                    onChange={(e) => setEditData({ ...editData, monthly_rate: e.target.value })}
-                                    placeholder="Harga"
-                                />
+                                <Label htmlFor="edit-type_kamar_id">Tipe Kamar</Label>
+                                <Select value={editData.type_kamar_id} onValueChange={(value) => setEditData({ ...editData, type_kamar_id: value })}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Pilih Tipe Kamar" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {typeKamars.map((type) => (
+                                            <SelectItem key={type.id} value={type.id.toString()}>
+                                                {type.nama} - Rp{Number(type.harga).toLocaleString('id-ID')}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
                             </div>
                             <div>
                                 <Label htmlFor="edit-status">Status</Label>
@@ -378,12 +410,16 @@ export default function Index({ rooms, kos }: Props) {
                                 </Select>
                             </div>
                             <div>
-                                <Label htmlFor="edit-description">Deskripsi</Label>
-                                <Textarea
-                                    id="edit-description"
-                                    value={editData.description}
-                                    onChange={(e) => setEditData({ ...editData, description: e.target.value })}
-                                    placeholder="Deskripsi"
+                                <Label htmlFor="edit-images">Tambah Gambar Baru</Label>
+                                <Input
+                                    id="edit-images"
+                                    type="file"
+                                    multiple
+                                    onChange={(e) => {
+                                        const files = Array.from(e.target.files || []);
+                                        setEditData({ ...editData, images: files });
+                                    }}
+                                    className="cursor-pointer"
                                 />
                             </div>
                             <div>

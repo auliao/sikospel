@@ -14,7 +14,7 @@ class PublicPendaftaranKosController extends Controller
     public function create(Request $request, $slug = null)
     {
         $kos = Kos::with(['rooms' => function ($q) {
-            $q->select('id', 'kos_id', 'room_number', 'monthly_rate', 'status');
+            $q->with('typeKamar')->select('id', 'kos_id', 'room_number', 'type_kamar_id', 'status');
         }])->get();
 
         $selectedKos = null;

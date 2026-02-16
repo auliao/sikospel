@@ -65,13 +65,21 @@ export interface Kos {
     rooms?: Room[];
 }
 
+export interface TypeKamar {
+    id: number;
+    nama: string;
+    harga: number;
+}
+
 export interface Room {
     id: number;
     kos_id: number;
     room_number: string;
-    monthly_rate: number;
+    type_kamar_id: number | null;
     status: string;
     description: string | null;
     image: string | null;
     kos: Kos;
+    typeKamar?: TypeKamar;
+    images?: { id: number; gambar: string }[];
 }
