@@ -56,6 +56,9 @@ Route::get('pendaftaran-kos/sukses/{id}', [PublicPendaftaranKosController::class
 Route::get('kos/{slug}', [PublicKosController::class, 'show'])->name('public.kos.show');
 
 Route::middleware(['auth', 'verified'])->group(function () {
+    Route::post('payment/token', [App\Http\Controllers\PaymentController::class, 'getSnapToken'])->name('payment.token');
+    Route::post('payment/status', [App\Http\Controllers\PaymentController::class, 'checkStatus'])->name('payment.status');
+
     Route::get('dashboard', function () {
         $user = auth()->user();
         if ($user->role && $user->role->name === 'penghuni') {
@@ -158,3 +161,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
 
 require __DIR__.'/settings.php';
+
+// Midtrans Callback (Public)
+Route::post('midtrans/callback', [App\Http\Controllers\PaymentController::class, 'callback'])->name('midtrans.callback');
