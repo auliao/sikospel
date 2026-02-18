@@ -84,3 +84,9 @@ export interface Room {
     type_kamar?: TypeKamar;
     images?: { id: number; gambar: string }[];
 }
+
+declare global {
+    function route(name?: string, params?: any, absolute?: boolean, config?: any): string;
+}
+
+export { };
