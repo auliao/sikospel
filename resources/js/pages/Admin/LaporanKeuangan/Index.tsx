@@ -9,6 +9,7 @@ import { FileDown, FileSpreadsheet, Search, ArrowUpDown, TrendingUp, Calendar, C
 import AppLayout from '@/layouts/app-layout';
 import { type SharedData } from '@/types';
 import { useState, useEffect } from 'react';
+import { Pagination } from '@/components/ui/pagination';
 
 interface Payment {
     id: number;
@@ -80,13 +81,26 @@ const YEARS = Array.from({ length: 5 }, (_, i) => (new Date().getFullYear() - i)
 
 export default function Index({ payments, stats, filters, kosList, methods }: Props) {
     const { auth } = usePage<SharedData>().props;
-    // Initialize search from filters, handle undefined and 'all' values
-    const [search, setSearch] = useState(filters.search || '');
-    
-    // Sync search state when filters.search changes from backend
+    const [localFilters, setLocalFilters] = useState({
+        bulan: String(filters.bulan || 'all'),
+        tahun: String(filters.tahun || 'all'),
+        kos_id: String(filters.kos_id || 'all'),
+        method: String(filters.method || 'all'),
+        search: filters.search || '',
+        sort: filters.sort ? `${filters.sort}-${filters.direction || 'desc'}` : 'payment_date-desc'
+    });
+
     useEffect(() => {
-        setSearch(filters.search || '');
-    }, [filters.search]);
+        setLocalFilters({
+            bulan: String(filters.bulan || 'all'),
+            tahun: String(filters.tahun || 'all'),
+            kos_id: String(filters.kos_id || 'all'),
+            method: String(filters.method || 'all'),
+            search: filters.search || '',
+            sort: filters.sort ? `${filters.sort}-${filters.direction || 'desc'}` : 'payment_date-desc'
+        });
+    }, [filters]);
+
 
     const formatCurrency = (amount: number | string) => {
         return new Intl.NumberFormat('id-ID', {
@@ -96,47 +110,62 @@ export default function Index({ payments, stats, filters, kosList, methods }: Pr
         }).format(Number(amount));
     };
 
-    const handleFilterChange = (key: string, value: string) => {
-        // Create new filters object
-        const newFilters: Record<string, any> = { ...filters };
-        
-        // Handle 'all' value - remove the key from filters
-        if (value === 'all' || value === '' || value === undefined) {
-            delete newFilters[key];
-        } else {
-            newFilters[key] = value;
-        }
+    const handleFilterChange = (key: string, value: any) => {
+        const nextFilters = { ...localFilters, [key]: value };
+        setLocalFilters(nextFilters);
 
-        // Always reset to page 1 when filters change
-        delete newFilters.page;
+        if (key === 'search') return;
 
-        router.get(route('admin.laporan-keuangan.index'), newFilters, {
+        applyFilters(nextFilters);
+    };
+
+    const applyFilters = (filtersToApply: typeof localFilters) => {
+        const queryParams: Record<string, string> = {};
+
+        if (filtersToApply.bulan !== 'all') queryParams.bulan = filtersToApply.bulan;
+        if (filtersToApply.tahun !== 'all') queryParams.tahun = filtersToApply.tahun;
+        if (filtersToApply.kos_id !== 'all') queryParams.kos_id = filtersToApply.kos_id;
+        if (filtersToApply.method !== 'all') queryParams.method = filtersToApply.method;
+        if (filtersToApply.search) queryParams.search = filtersToApply.search;
+
+        // Parse sort string like 'payment_date-desc'
+        const sortStr = filtersToApply.sort || 'payment_date-desc';
+        const dashIdx = sortStr.lastIndexOf('-');
+        queryParams.sort = dashIdx > -1 ? sortStr.substring(0, dashIdx) : 'payment_date';
+        queryParams.direction = dashIdx > -1 ? sortStr.substring(dashIdx + 1) : 'desc';
+
+        console.log('Navigating with params:', queryParams);
+        router.get('/admin/laporan-keuangan', queryParams, {
             replace: true,
             preserveScroll: true,
-            preserveState: true,
+            onSuccess: () => console.log('Navigation Success'),
+            onError: (err) => console.error('Navigation Error', err),
         });
     };
 
     const handleSearch = () => {
-        handleFilterChange('search', search);
+        applyFilters(localFilters);
     };
 
     const handleReset = () => {
-        setSearch('');
-        router.get(route('admin.laporan-keuangan.index'), {}, {
-            replace: true,
-        });
+        const resetState = {
+            bulan: 'all',
+            tahun: 'all',
+            kos_id: 'all',
+            method: 'all',
+            search: '',
+            sort: 'payment_date-desc'
+        };
+        setLocalFilters(resetState);
+        applyFilters(resetState);
     };
 
     const handleSort = (column: string) => {
         const direction = filters.sort === column && filters.direction === 'asc' ? 'desc' : 'asc';
-        const newFilters = { ...filters, sort: column, direction };
-        delete newFilters.page;
-        
-        router.get(route('admin.laporan-keuangan.index'), newFilters, {
-            preserveState: true,
-            preserveScroll: true,
-        });
+        const nextSortStr = `${column}-${direction}`;
+        const next = { ...localFilters, sort: nextSortStr };
+        setLocalFilters(next);
+        applyFilters(next);
     };
 
     return (
@@ -200,25 +229,30 @@ export default function Index({ payments, stats, filters, kosList, methods }: Pr
                     <CardContent className="pt-6">
                         <div className="flex flex-col md:flex-row gap-4 items-end">
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 flex-1">
-                                <div className="space-y-1.5">
+                                <div className="space-y-2">
                                     <label className="text-xs font-semibold text-[#664229] uppercase tracking-wider">Bulan</label>
                                     <Select
-                                        value={String(filters.bulan || 'all')}
-                                        onValueChange={(v) => handleFilterChange('bulan', v)}
+                                        value={localFilters.bulan}
+                                        onValueChange={(v) => {
+                                            console.log('Bulan selected:', v);
+                                            handleFilterChange('bulan', v);
+                                        }}
                                     >
                                         <SelectTrigger className="bg-white border-[#664229]/20 focus:ring-[#664229]">
                                             <SelectValue placeholder="Semua Bulan" />
                                         </SelectTrigger>
                                         <SelectContent>
                                             <SelectItem value="all">Semua Bulan</SelectItem>
-                                            {MONTHS.map(m => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
+                                            {MONTHS.map(m => (
+                                                <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                                            ))}
                                         </SelectContent>
                                     </Select>
                                 </div>
-                                <div className="space-y-1.5">
+                                <div className="space-y-2">
                                     <label className="text-xs font-semibold text-[#664229] uppercase tracking-wider">Tahun</label>
                                     <Select
-                                        value={String(filters.tahun || 'all')}
+                                        value={localFilters.tahun}
                                         onValueChange={(v) => handleFilterChange('tahun', v)}
                                     >
                                         <SelectTrigger className="bg-white border-[#664229]/20 focus:ring-[#664229]">
@@ -230,10 +264,10 @@ export default function Index({ payments, stats, filters, kosList, methods }: Pr
                                         </SelectContent>
                                     </Select>
                                 </div>
-                                <div className="space-y-1.5">
+                                <div className="space-y-2">
                                     <label className="text-xs font-semibold text-[#664229] uppercase tracking-wider">Metode</label>
                                     <Select
-                                        value={String(filters.method || 'all')}
+                                        value={localFilters.method}
                                         onValueChange={(v) => handleFilterChange('method', v)}
                                     >
                                         <SelectTrigger className="bg-white border-[#664229]/20 focus:ring-[#664229]">
@@ -241,14 +275,16 @@ export default function Index({ payments, stats, filters, kosList, methods }: Pr
                                         </SelectTrigger>
                                         <SelectContent>
                                             <SelectItem value="all">Semua Metode</SelectItem>
-                                            {methods.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                                            {methods.filter(m => m && m.trim() !== "").map(m => (
+                                                <SelectItem key={m} value={m}>{m}</SelectItem>
+                                            ))}
                                         </SelectContent>
                                     </Select>
                                 </div>
-                                <div className="space-y-1.5">
+                                <div className="space-y-2">
                                     <label className="text-xs font-semibold text-[#664229] uppercase tracking-wider">Kos</label>
                                     <Select
-                                        value={String(filters.kos_id || 'all')}
+                                        value={localFilters.kos_id}
                                         onValueChange={(v) => handleFilterChange('kos_id', v)}
                                     >
                                         <SelectTrigger className="bg-white border-[#664229]/20 focus:ring-[#664229]">
@@ -256,10 +292,40 @@ export default function Index({ payments, stats, filters, kosList, methods }: Pr
                                         </SelectTrigger>
                                         <SelectContent>
                                             <SelectItem value="all">Semua Kos</SelectItem>
-                                            {kosList.map(k => <SelectItem key={k.id} value={k.id.toString()}>{k.name}</SelectItem>)}
+                                            {kosList.map(k => (
+                                                <SelectItem key={k.id} value={k.id.toString()}>{k.name}</SelectItem>
+                                            ))}
                                         </SelectContent>
                                     </Select>
                                 </div>
+                                {/* <div className="space-y-1.5">
+                                    <label className="text-xs font-semibold text-[#664229] uppercase tracking-wider">Urutkan</label>
+                                    <Select
+                                        value={localFilters.sort}
+                                        onValueChange={(v: string) => {
+                                            console.log('Sort selection:', v);
+                                            const [sort, direction] = v.split('-');
+                                            router.get(route('admin.laporan-keuangan.index'), { ...localFilters, sort, direction }, {
+                                                preserveScroll: true,
+                                                onSuccess: () => console.log('Sort navigation success'),
+                                            });
+                                        }}
+                                    >
+                                        <SelectTrigger className="bg-white border-[#664229]/20 focus:ring-[#664229]">
+                                            <SelectValue placeholder="Urutkan" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="payment_date-desc">Tanggal (Terbaru)</SelectItem>
+                                            <SelectItem value="payment_date-asc">Tanggal (Terlama)</SelectItem>
+                                            <SelectItem value="amount_paid-desc">Nominal (Tertinggi)</SelectItem>
+                                            <SelectItem value="amount_paid-asc">Nominal (Terendah)</SelectItem>
+                                            <SelectItem value="penghuni_name-asc">Nama (A-Z)</SelectItem>
+                                            <SelectItem value="penghuni_name-desc">Nama (Z-A)</SelectItem>
+                                            <SelectItem value="kos_name-asc">Kos (A-Z)</SelectItem>
+                                            <SelectItem value="type_kamar-asc">Tipe Kamar (A-Z)</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div> */}
                             </div>
                             <div className="flex gap-2 w-full md:w-auto mt-4 md:mt-0">
                                 <div className="relative flex-1 md:w-64">
@@ -267,8 +333,8 @@ export default function Index({ payments, stats, filters, kosList, methods }: Pr
                                     <Input
                                         className="pl-9 bg-white border-[#664229]/20"
                                         placeholder="Cari Penghuni..."
-                                        value={search}
-                                        onChange={(e) => setSearch(e.target.value)}
+                                        value={localFilters.search}
+                                        onChange={(e) => handleFilterChange('search', e.target.value)}
                                         onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                                     />
                                 </div>
@@ -302,7 +368,15 @@ export default function Index({ payments, stats, filters, kosList, methods }: Pr
                                 <TableHead className="text-[#664229] font-bold cursor-pointer" onClick={() => handleSort('payment_date')}>
                                     Tanggal Bayar <ArrowUpDown className="inline h-3 w-3 ml-1" />
                                 </TableHead>
-                                <TableHead className="text-[#664229] font-bold">Type Kamar</TableHead>
+                                <TableHead className="text-[#664229] font-bold cursor-pointer" onClick={() => handleSort('penghuni_name')}>
+                                    Nama Penghuni <ArrowUpDown className="inline h-3 w-3 ml-1" />
+                                </TableHead>
+                                <TableHead className="text-[#664229] font-bold cursor-pointer" onClick={() => handleSort('kos_name')}>
+                                    Nama Kos <ArrowUpDown className="inline h-3 w-3 ml-1" />
+                                </TableHead>
+                                <TableHead className="text-[#664229] font-bold cursor-pointer" onClick={() => handleSort('type_kamar')}>
+                                    Type Kamar <ArrowUpDown className="inline h-3 w-3 ml-1" />
+                                </TableHead>
                                 <TableHead className="text-[#664229] font-bold cursor-pointer" onClick={() => handleSort('billing_period')}>
                                     Periode Tagihan <ArrowUpDown className="inline h-3 w-3 ml-1" />
                                 </TableHead>
@@ -310,7 +384,7 @@ export default function Index({ payments, stats, filters, kosList, methods }: Pr
                                     Nominal Bayar <ArrowUpDown className="inline h-3 w-3 ml-1" />
                                 </TableHead>
                                 <TableHead className="text-[#664229] font-bold cursor-pointer" onClick={() => handleSort('method')}>
-                                    Metode <ArrowUpDown className="inline h-3 w-3 ml-1" />
+                                    Metode Pembayaran <ArrowUpDown className="inline h-3 w-3 ml-1" />
                                 </TableHead>
                             </TableRow>
                         </TableHeader>
