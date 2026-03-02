@@ -59,51 +59,43 @@ class FinancialReportController extends Controller
         $sortColumn = $request->input('sort', 'payment_date');
         $sortDirection = $request->input('direction', 'desc');
         
-        // Get base query for stats
-        $statsQuery = $this->getBaseStatsQuery($isPemilik, $user);
+        $sortableColumns = [
+            'payment_date' => 'payments.payment_date',
+            'amount_paid' => 'payments.amount_paid',
+            'method' => 'payments.method',
+            'penghuni_name' => 'penghuni.name',
+            'kos_name' => 'kos.name',
+            'type_kamar' => 'type_kamars.nama',
+            'billing_period' => 'invoices.billing_period',
+        ];
         
-        // Apply kos_id filter to stats if provided
+        $orderColumn = $sortableColumns[$sortColumn] ?? 'payments.payment_date';
+        
+        // We need separate queries for top cards (period-specific but respecting Kos/User context)
+        $baseContext = Payment::where('status', 'sukses')
+            ->whereHas('invoice', fn($q) => $q->where('status', 'lunas'));
+
+        if ($isPemilik) {
+            $baseContext->whereHas('invoice.tenancy.room.kos', fn($q) => $q->where('owner_id', $user->id));
+        }
+
         if ($request->filled('kos_id') && $request->kos_id !== 'all') {
             $statsQuery->whereHas('invoice.tenancy.room.kos', fn($q) => $q->where('id', $request->kos_id));
         }
 
-        // Calculate stats
-        $totalToday = (clone $statsQuery)->whereDate('payment_date', Carbon::today())->sum('amount_paid');
-        $totalMonth = (clone $statsQuery)->whereMonth('payment_date', Carbon::now()->month)
+        $totalToday = (clone $baseContext)->whereDate('payment_date', Carbon::today())->sum('payments.amount_paid');
+        $totalMonth = (clone $baseContext)->whereMonth('payment_date', Carbon::now()->month)
                                         ->whereYear('payment_date', Carbon::now()->year)
-                                        ->sum('amount_paid');
-        $totalYear = (clone $statsQuery)->whereYear('payment_date', Carbon::now()->year)->sum('amount_paid');
+                                        ->sum('payments.amount_paid');
+        $totalYear = (clone $baseContext)->whereYear('payment_date', Carbon::now()->year)->sum('payments.amount_paid');
 
-        // Get filtered total
-        $totalFiltered = $this->getFilteredQuery($request, $isPemilik, $user)->sum('amount_paid');
-
-        // Base query for the table with eager loading
-        $tableQuery = Payment::with([
-            'invoice.tenancy.penghuni',
-            'invoice.tenancy.room.kos',
-            'invoice.tenancy.room.typeKamar'
-        ])
-        ->where('payments.status', 'sukses')
-        ->whereHas('invoice', fn($q) => $q->where('status', 'lunas'));
-
-        // Apply filters to table query
-        $this->applyFiltersToQuery($tableQuery, $request, $isPemilik, $user);
-
-        // Apply sorting
-        $sortMap = [
-            'payment_date' => 'payments.payment_date',
-            'amount_paid' => 'payments.amount_paid',
-            'method' => 'payments.method',
-            'penghuni_name' => 'payments.payment_date', // Will sort by eager loaded relationship in memory
-            'kos_name' => 'payments.payment_date',
-            'billing_period' => 'payments.payment_date',
-        ];
-
-        // For now, always sort by payment_date in database, sort relationships in memory
-        $tableQuery->orderBy('payments.payment_date', $sortDirection);
+        $totalFiltered = (clone $query)->sum('payments.amount_paid');
 
         // Pagination
-        $payments = $tableQuery->paginate(10)->withQueryString();
+        $payments = (clone $query)
+            ->orderBy($orderColumn, $sortDirection)
+            ->paginate(10)
+            ->withQueryString();
 
         // Get Kos list for filter
         if ($isSuperadmin) {
@@ -171,18 +163,20 @@ class FinancialReportController extends Controller
             $query->whereHas('invoice.tenancy.room.kos', fn($q) => $q->where('owner_id', $user->id));
         }
 
-        return $query;
-    }
-
-    private function getFilteredQuery(Request $request, $isPemilik, $user)
-    {
-        $query = Payment::with([
-            'invoice.tenancy.penghuni',
-            'invoice.tenancy.room.kos',
-            'invoice.tenancy.room.typeKamar'
-        ])
-        ->where('payments.status', 'sukses')
-        ->whereHas('invoice', fn($q) => $q->where('status', 'lunas'));
+        $query = Payment::select('payments.*')
+            ->with([
+                'invoice.tenancy.penghuni',
+                'invoice.tenancy.room.kos',
+                'invoice.tenancy.room.typeKamar'
+            ])
+            ->join('invoices', 'payments.invoice_id', '=', 'invoices.id')
+            ->join('penyewaan', 'invoices.tenancy_id', '=', 'penyewaan.id')
+            ->join('penghuni', 'penyewaan.penghuni_id', '=', 'penghuni.user_id')
+            ->join('rooms', 'penyewaan.room_id', '=', 'rooms.id')
+            ->join('kos', 'rooms.kos_id', '=', 'kos.id')
+            ->join('type_kamars', 'rooms.type_kamar_id', '=', 'type_kamars.id')
+            ->where('payments.status', 'sukses')
+            ->where('invoices.status', 'lunas');
 
         $this->applyFiltersToQuery($query, $request, $isPemilik, $user);
 
@@ -192,42 +186,32 @@ class FinancialReportController extends Controller
     private function applyFiltersToQuery($query, Request $request, $isPemilik, $user)
     {
         if ($isPemilik) {
-            $query->whereHas('invoice.tenancy.room.kos', function ($q) use ($user) {
-                $q->where('owner_id', $user->id);
-            });
+            $query->where('kos.owner_id', $user->id);
         }
 
         if ($request->filled('kos_id') && $request->kos_id !== 'all') {
-            $query->whereHas('invoice.tenancy.room.kos', function ($q) use ($request) {
-                $q->where('id', $request->kos_id);
-            });
+            $query->where('kos.id', $request->kos_id);
         }
 
         if ($request->filled('bulan') && $request->bulan !== 'all') {
-            $query->whereMonth('payment_date', $request->bulan);
+            $query->whereMonth('payments.payment_date', $request->bulan);
         }
 
         if ($request->filled('tahun') && $request->tahun !== 'all') {
-            $query->whereYear('payment_date', $request->tahun);
+            $query->whereYear('payments.payment_date', $request->tahun);
         }
 
         if ($request->filled('method') && $request->method !== 'all') {
-            $query->where('method', $request->method);
+            $query->where('payments.method', $request->method);
         }
 
         if ($request->filled('search')) {
             $searchTerm = trim($request->search);
-            $query->where(function($q) use ($searchTerm) {
-                $q->whereHas('invoice.tenancy.penghuni', function ($sq) use ($searchTerm) {
-                    $sq->where('name', 'like', '%' . $searchTerm . '%');
-                })
-                ->orWhereHas('invoice.tenancy.room.kos', function ($sq) use ($searchTerm) {
-                    $sq->where('name', 'like', '%' . $searchTerm . '%');
-                })
-                ->orWhereHas('invoice.tenancy.room', function ($sq) use ($searchTerm) {
-                    $sq->where('room_number', 'like', '%' . $searchTerm . '%');
-                })
-                ->orWhere('method', 'like', '%' . $searchTerm . '%');
+            $query->where(function ($q) use ($searchTerm) {
+                $q->where('penghuni.name', 'like', '%' . $searchTerm . '%')
+                  ->orWhere('kos.name', 'like', '%' . $searchTerm . '%')
+                  ->orWhere('type_kamars.nama', 'like', '%' . $searchTerm . '%')
+                  ->orWhere('rooms.room_number', 'like', '%' . $searchTerm . '%');
             });
         }
     }
