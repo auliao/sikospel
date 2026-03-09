@@ -9,6 +9,8 @@ use Midtrans\Config;
 use Midtrans\Snap;
 use Midtrans\Transaction;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use App\Jobs\SyncPendapatanPelaporanJob;
 
 class PaymentController extends Controller
 {
@@ -165,13 +167,33 @@ class PaymentController extends Controller
                     'feedback' => $feedback,
                 ]
             );
+
+            if ($paymentStatus === 'sukses') {
+                $invoice->load(['tenancy.penghuni', 'tenancy.room.kos', 'tenancy.room.typeKamar']);
+                $tenancy = $invoice->tenancy;
+                $room = $tenancy->room;
+                $kos = $room->kos;
+
+                SyncPendapatanPelaporanJob::dispatch(
+                    $kos->id,
+                    $kos->owner_id,
+                    $kos->name,
+                    $tenancy->penghuni->name,
+                    $room->room_number,
+                    $room->typeKamar ? $room->typeKamar->nama : null,
+                    $invoice->billing_period,
+                    $type,
+                    $grossAmount,
+                    now()->format('Y-m-d H:i:s')
+                );
+            }
         });
     }
 
     public function callback(Request $request)
     {
         try {
-            \Illuminate\Support\Facades\Log::info('Midtrans Notification received', $request->all());
+            Log::info('Midtrans Notification received', $request->all());
 
             // Validasi Signature Key dari Midtrans untuk mencegah manipulasi data
             $orderId = $request->order_id;
@@ -183,7 +205,7 @@ class PaymentController extends Controller
             $expectedSignature = hash('sha512', $orderId . $statusCode . $grossAmount . $serverKey);
 
             if ($expectedSignature !== $incomingSignature) {
-                \Illuminate\Support\Facades\Log::warning('Midtrans Invalid Signature Detected', [
+                Log::warning('Midtrans Invalid Signature Detected', [
                     'expected' => $expectedSignature,
                     'received' => $incomingSignature,
                     'order_id' => $orderId
@@ -195,7 +217,7 @@ class PaymentController extends Controller
             
             return response()->json(['status' => 'success']);
         } catch (\Exception $e) {
-            \Illuminate\Support\Facades\Log::error('Midtrans Callback Error: ' . $e->getMessage(), [
+            Log::error('Midtrans Callback Error: ' . $e->getMessage(), [
                 'stack' => $e->getTraceAsString(),
                 'request' => $request->all()
             ]);

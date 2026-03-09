@@ -10,6 +10,8 @@ use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 class FinancialReportController extends Controller
 {
@@ -17,63 +19,53 @@ class FinancialReportController extends Controller
     {
         $user = auth()->user();
         $isSuperadmin = $user->role->name === 'superadmin';
-        $isPemilik = $user->role->name === 'pemilik';
-
-        // For stats calculation, we use the same filtering logic as the table
-        $query = $this->getQuery($request);
         
-        // Sorting
-        $sortColumn = $request->input('sort', 'payment_date');
-        $sortDirection = $request->input('direction', 'desc');
-        
-        $sortableColumns = [
-            'payment_date' => 'payments.payment_date',
-            'amount_paid' => 'payments.amount_paid',
-            'method' => 'payments.method',
-            'penghuni_name' => 'penghuni.name',
-            'kos_name' => 'kos.name',
-            'type_kamar' => 'type_kamars.nama',
-            'billing_period' => 'invoices.billing_period',
+        // Prepare API Parameters
+        $params = [
+            'bulan'  => $request->bulan === 'all' ? null : $request->bulan,
+            'tahun'  => $request->tahun === 'all' ? null : $request->tahun,
+            'kos_id' => $request->kos_id === 'all' ? null : $request->kos_id,
+            'metode' => $request->method === 'all' ? null : $request->method,
+            'search' => $request->search,
+            'page'   => $request->page ?? 1,
         ];
-        
-        $orderColumn = $sortableColumns[$sortColumn] ?? 'payments.payment_date';
-        
-        // We need separate queries for top cards (period-specific but respecting Kos/User context)
-        $baseContext = Payment::where('status', 'sukses')
-            ->whereHas('invoice', fn($q) => $q->where('status', 'lunas'));
 
-        if ($isPemilik) {
-            $baseContext->whereHas('invoice.tenancy.room.kos', fn($q) => $q->where('owner_id', $user->id));
+        if ($user->role->name === 'pemilik') {
+            $params['pemilik_id'] = $user->id;
         }
 
-        if ($request->filled('kos_id') && $request->kos_id !== 'all') {
-            $baseContext->whereHas('invoice.tenancy.room.kos', fn($q) => $q->where('id', $request->kos_id));
+        try {
+            $response = Http::timeout(10)->withToken(env('API_PELAPORAN_TOKEN'))
+                ->get(env('API_PELAPORAN_URL') . '/laporan-pendapatan', array_filter($params));
+
+            if ($response->successful()) {
+                $apiData = $response->json('data');
+                $agregasi = $apiData['agregasi'];
+                $laporan = $apiData['laporan'];
+
+                // Re-format for pagination compatibility if needed (Inertia expects specific structure)
+                // App2 returns $laporan which is already a paginated object if not 'cetak=true'
+            } else {
+                Log::error('Gagal mengambil laporan dari API', ['status' => $response->status(), 'body' => $response->body()]);
+                $agregasi = ['hari_ini' => 0, 'bulan_ini' => 0, 'tahun_ini' => 0, 'keseluruhan' => 0];
+                $laporan = ['data' => [], 'links' => [], 'total' => 0];
+            }
+        } catch (\Exception $e) {
+            Log::error('Error koneksi API Laporan: ' . $e->getMessage());
+            $agregasi = ['hari_ini' => 0, 'bulan_ini' => 0, 'tahun_ini' => 0, 'keseluruhan' => 0];
+            $laporan = ['data' => [], 'links' => [], 'total' => 0];
         }
 
-        $totalToday = (clone $baseContext)->whereDate('payment_date', Carbon::today())->sum('payments.amount_paid');
-        $totalMonth = (clone $baseContext)->whereMonth('payment_date', Carbon::now()->month)
-                                        ->whereYear('payment_date', Carbon::now()->year)
-                                        ->sum('payments.amount_paid');
-        $totalYear = (clone $baseContext)->whereYear('payment_date', Carbon::now()->year)->sum('payments.amount_paid');
-
-        $totalFiltered = (clone $query)->sum('payments.amount_paid');
-
-        // Pagination
-        $payments = (clone $query)
-            ->orderBy($orderColumn, $sortDirection)
-            ->paginate(10)
-            ->withQueryString();
-
-        // Get Kos list for filter
+        // Get Kos list for filter (Still local to App1)
         $kosList = $isSuperadmin ? Kos::all() : Kos::where('owner_id', $user->id)->get();
 
         return Inertia::render('admin/LaporanKeuangan/Index', [
-            'payments' => $payments,
+            'payments' => $laporan,
             'stats' => [
-                'today' => $totalToday,
-                'month' => $totalMonth,
-                'year' => $totalYear,
-                'total' => $totalFiltered,
+                'today' => $agregasi['hari_ini'],
+                'month' => $agregasi['bulan_ini'],
+                'year' => $agregasi['tahun_ini'],
+                'total' => $agregasi['keseluruhan'],
             ],
             'filters' => $request->only(['bulan', 'tahun', 'kos_id', 'method', 'search', 'sort', 'direction']),
             'kosList' => $kosList,
@@ -83,8 +75,30 @@ class FinancialReportController extends Controller
 
     public function exportPdf(Request $request)
     {
-        $payments = $this->getQuery($request)->get();
-        $total = $payments->sum('amount_paid');
+        $user = auth()->user();
+        $params = [
+            'bulan'  => $request->bulan === 'all' ? null : $request->bulan,
+            'tahun'  => $request->tahun === 'all' ? null : $request->tahun,
+            'kos_id' => $request->kos_id === 'all' ? null : $request->kos_id,
+            'metode' => $request->method === 'all' ? null : $request->method,
+            'search' => $request->search,
+            'cetak'  => 'true',
+        ];
+
+        if ($user->role->name === 'pemilik') {
+            $params['pemilik_id'] = $user->id;
+        }
+
+        try {
+            $response = Http::timeout(15)->withToken(env('API_PELAPORAN_TOKEN'))
+                ->get(env('API_PELAPORAN_URL') . '/laporan-pendapatan', array_filter($params));
+            
+            $payments = $response->successful() ? collect($response->json('data.laporan')) : collect([]);
+        } catch (\Exception $e) {
+            $payments = collect([]);
+        }
+
+        $total = $payments->sum('nominal');
         $bulanStr = 'Semua';
         if ($request->filled('bulan') && $request->bulan !== 'all') {
             $bulanStr = Carbon::create()->month($request->bulan)->translatedFormat('F');
@@ -111,7 +125,29 @@ class FinancialReportController extends Controller
 
     public function exportExcel(Request $request)
     {
-        $payments = $this->getQuery($request)->get();
+        $user = auth()->user();
+        $params = [
+            'bulan'  => $request->bulan === 'all' ? null : $request->bulan,
+            'tahun'  => $request->tahun === 'all' ? null : $request->tahun,
+            'kos_id' => $request->kos_id === 'all' ? null : $request->kos_id,
+            'metode' => $request->method === 'all' ? null : $request->method,
+            'search' => $request->search,
+            'cetak'  => 'true',
+        ];
+
+        if ($user->role->name === 'pemilik') {
+            $params['pemilik_id'] = $user->id;
+        }
+
+        try {
+            $response = Http::timeout(15)->withToken(env('API_PELAPORAN_TOKEN'))
+                ->get(env('API_PELAPORAN_URL') . '/laporan-pendapatan', array_filter($params));
+            
+            $payments = $response->successful() ? collect($response->json('data.laporan')) : collect([]);
+        } catch (\Exception $e) {
+            $payments = collect([]);
+        }
+
         return \Maatwebsite\Excel\Facades\Excel::download(
             new \App\Exports\FinancialReportExport($payments), 
             'Laporan_Keuangan_SIKOSPEL_' . now()->format('YmdHis') . '.xlsx'
@@ -120,66 +156,6 @@ class FinancialReportController extends Controller
 
     private function getQuery(Request $request)
     {
-        $user = auth()->user();
-        $isPemilik = $user->role->name === 'pemilik';
-
-        $query = Payment::select(
-                'payments.id',
-                'payments.invoice_id',
-                'payments.amount_paid',
-                'payments.method',
-                'payments.status',
-                'payments.payment_date',
-                'payments.created_at',
-                'payments.updated_at',
-                'invoices.billing_period',
-                'invoices.status as invoice_status',
-                'penyewaan.id as tenancy_id',
-                'rooms.room_number',
-                'rooms.type_kamar_id',
-                'type_kamars.nama as type_kamar_nama',
-                'penghuni.name as penghuni_name',
-                'kos.name as kos_name'
-            )
-            ->join('invoices', 'payments.invoice_id', '=', 'invoices.id')
-            ->join('penyewaan', 'invoices.tenancy_id', '=', 'penyewaan.id')
-            ->join('penghuni', 'penyewaan.penghuni_id', '=', 'penghuni.user_id')
-            ->join('rooms', 'penyewaan.room_id', '=', 'rooms.id')
-            ->join('kos', 'rooms.kos_id', '=', 'kos.id')
-            ->leftJoin('type_kamars', 'rooms.type_kamar_id', '=', 'type_kamars.id')
-            ->where('payments.status', 'sukses')
-            ->where('invoices.status', 'lunas');
-
-        if ($isPemilik) {
-            $query->where('kos.owner_id', $user->id);
-        }
-
-        if ($request->filled('kos_id') && $request->kos_id !== 'all') {
-            $query->where('kos.id', $request->kos_id);
-        }
-
-        if ($request->filled('bulan') && $request->bulan !== 'all') {
-            $query->whereMonth('payments.payment_date', $request->bulan);
-        }
-
-        if ($request->filled('tahun') && $request->tahun !== 'all') {
-            $query->whereYear('payments.payment_date', $request->tahun);
-        }
-
-        if ($request->filled('method') && $request->method !== 'all') {
-            $query->where('payments.method', $request->method);
-        }
-
-        if ($request->filled('search')) {
-            $searchTerm = trim($request->search);
-            $query->where(function ($q) use ($searchTerm) {
-                $q->where('penghuni.name', 'like', '%' . $searchTerm . '%')
-                  ->orWhere('kos.name', 'like', '%' . $searchTerm . '%')
-                  ->orWhere('type_kamars.nama', 'like', '%' . $searchTerm . '%')
-                  ->orWhere('rooms.room_number', 'like', '%' . $searchTerm . '%');
-            });
-        }
-
-        return $query;
+        return Payment::query();
     }
 }
