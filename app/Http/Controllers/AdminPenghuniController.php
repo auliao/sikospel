@@ -177,8 +177,8 @@ class AdminPenghuniController extends Controller
                     $penghuni->name,
                     $penghuni->no_wa,
                     $penghuni->religion,
-                    $urlKtp,
-                    $urlKk,
+                    $penghuni->file_path_ktp,
+                    $penghuni->file_path_kk,
                     $room->kos_id,
                     'masuk',
                     $request->tanggal_daftar ?? now()->format('Y-m-d')
@@ -253,9 +253,6 @@ class AdminPenghuniController extends Controller
                     }
 
                     if ($newKosId && $oldKosId !== $newKosId) {
-                        $urlKtp = $penghuni->file_path_ktp ? asset('storage/' . $penghuni->file_path_ktp) : null;
-                        $urlKk = $penghuni->file_path_kk ? asset('storage/' . $penghuni->file_path_kk) : null;
-
                         if ($oldKosId) {
                             SyncMutasiPelaporanJob::dispatch(
                                 $penghuni->user_id,
@@ -276,8 +273,8 @@ class AdminPenghuniController extends Controller
                             $penghuni->name,
                             $penghuni->no_wa,
                             $penghuni->religion,
-                            $urlKtp,
-                            $urlKk,
+                            $penghuni->file_path_ktp,
+                            $penghuni->file_path_kk,
                             $newKosId,
                             'masuk',
                             $request->tanggal_daftar ?? now()->format('Y-m-d')

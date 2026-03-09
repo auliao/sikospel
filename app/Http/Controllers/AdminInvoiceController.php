@@ -13,6 +13,7 @@ use Inertia\Inertia;
 
 use App\Models\Penyewaan;
 use Carbon\Carbon;
+use App\Jobs\SyncPendapatanPelaporanJob;
 
 class AdminInvoiceController extends Controller
 {
@@ -233,6 +234,24 @@ class AdminInvoiceController extends Controller
                 'status' => 'sukses',
                 'feedback' => 'Dibayar tunai (cash) melalui Admin/Pemilik.',
             ]);
+
+            $invoice->load(['tenancy.penghuni', 'tenancy.room.kos', 'tenancy.room.typeKamar']);
+            $tenancy = $invoice->tenancy;
+            $room = $tenancy->room;
+            $kos = $room->kos;
+
+            SyncPendapatanPelaporanJob::dispatch(
+                $kos->id,
+                $kos->owner_id,
+                $kos->name,
+                $tenancy->penghuni->name,
+                $room->room_number,
+                $room->typeKamar ? $room->typeKamar->nama : null,
+                $invoice->billing_period,
+                'cash',
+                $invoice->amount,
+                now()->format('Y-m-d H:i:s')
+            );
         });
 
         return redirect()->back()->with('success', 'Tagihan berhasil ditandai sebagai lunas (Cash).');

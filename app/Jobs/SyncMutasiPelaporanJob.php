@@ -15,8 +15,8 @@ class SyncMutasiPelaporanJob implements ShouldQueue
     protected $nama;
     protected $noWa;
     protected $agama;
-    protected $fileKtpUrl;
-    protected $fileKkUrl;
+    protected $fileKtpPath;
+    protected $fileKkPath;
     protected $idKos;
     protected $jenisMutasi;
     protected $tanggalMutasi;
@@ -29,8 +29,8 @@ class SyncMutasiPelaporanJob implements ShouldQueue
         $nama,
         $noWa,
         $agama,
-        $fileKtpUrl,
-        $fileKkUrl,
+        $fileKtpPath,
+        $fileKkPath,
         $idKos,
         $jenisMutasi,
         $tanggalMutasi
@@ -39,8 +39,8 @@ class SyncMutasiPelaporanJob implements ShouldQueue
         $this->nama = $nama;
         $this->noWa = $noWa;
         $this->agama = $agama;
-        $this->fileKtpUrl = $fileKtpUrl;
-        $this->fileKkUrl = $fileKkUrl;
+        $this->fileKtpPath = $fileKtpPath;
+        $this->fileKkPath = $fileKkPath;
         $this->idKos = $idKos;
         $this->jenisMutasi = $jenisMutasi;
         $this->tanggalMutasi = $tanggalMutasi;
@@ -52,18 +52,35 @@ class SyncMutasiPelaporanJob implements ShouldQueue
     public function handle(): void
     {
         try {
-            $response = Http::timeout(10)->withToken(env('API_PELAPORAN_TOKEN'))
-                ->post(env('API_PELAPORAN_URL') . '/sync-mutasi', [
-                    'id_penghuni'    => $this->idPenghuni,
-                    'nama'           => $this->nama,
-                    'no_wa'          => $this->noWa,
-                    'agama'          => $this->agama,
-                    'file_ktp'       => $this->fileKtpUrl,
-                    'file_kk'        => $this->fileKkUrl,
-                    'id_kos'         => $this->idKos,
-                    'jenis_mutasi'   => $this->jenisMutasi,
-                    'tanggal_mutasi' => $this->tanggalMutasi,
-                ]);
+            $request = Http::timeout(15)->withToken(env('API_PELAPORAN_TOKEN'));
+
+            $data = [
+                'id_penghuni'    => $this->idPenghuni,
+                'nama'           => $this->nama,
+                'no_wa'          => $this->noWa,
+                'agama'          => $this->agama,
+                'id_kos'         => $this->idKos,
+                'jenis_mutasi'   => $this->jenisMutasi,
+                'tanggal_mutasi' => $this->tanggalMutasi,
+            ];
+
+            if ($this->fileKtpPath && \Storage::disk('public')->exists($this->fileKtpPath)) {
+                $request->attach(
+                    'file_ktp', 
+                    \Storage::disk('public')->get($this->fileKtpPath), 
+                    basename($this->fileKtpPath)
+                );
+            }
+
+            if ($this->fileKkPath && \Storage::disk('public')->exists($this->fileKkPath)) {
+                $request->attach(
+                    'file_kk', 
+                    \Storage::disk('public')->get($this->fileKkPath), 
+                    basename($this->fileKkPath)
+                );
+            }
+
+            $response = $request->post(env('API_PELAPORAN_URL') . '/sync-mutasi', $data);
 
             if ($response->successful() && $response->json('success') === true) {
                 Log::info('Berhasil sync mutasi ' . strtoupper($this->jenisMutasi) . ' via Job ke pelaporan');
