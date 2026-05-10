@@ -43,7 +43,6 @@ export default function Index({ kos, pemilik, userRole }: Props) {
 
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [editingId, setEditingId] = useState<number | null>(null);
-    const [existingImage, setExistingImage] = useState<string | null>(null);
     const [editData, setEditData] = useState({
         owner_id: '',
         name: '',
@@ -185,17 +184,7 @@ export default function Index({ kos, pemilik, userRole }: Props) {
         {
             accessorKey: 'address',
             header: 'Alamat',
-            cell: ({ row }) => (
-                <a
-                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${row.getValue('name')} ${row.getValue('address')}`)}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="max-w-[300px] truncate text-blue-600 hover:text-blue-800 hover:underline inline-block dark:text-blue-400 dark:hover:text-blue-300"
-                    title="Lihat di Google Maps"
-                >
-                    {row.getValue('address')}
-                </a>
-            ),
+            cell: ({ row }) => <div className="max-w-[300px] truncate">{row.getValue('address')}</div>,
         },
         {
             accessorKey: 'gender_type',
