@@ -32,8 +32,19 @@ class AdminInvoiceController extends Controller
             }
         }
 
+        if (request('kos_id') && request('kos_id') !== 'all') {
+            $query->whereHas('tenancy.room', function($q) {
+                $q->where('kos_id', request('kos_id'));
+            });
+        }
+
+        $kosList = $user->role->name === 'superadmin' ? Kos::all() : 
+                  ($user->role->name === 'pemilik' ? Kos::where('owner_id', $user->id)->get() : collect([]));
+
         return Inertia::render('admin/Tagihan/Index', [
             'invoices' => $query->get(),
+            'koses' => $kosList,
+            'filters' => request()->only(['kos_id'])
         ]);
     }
 
@@ -112,6 +123,12 @@ class AdminInvoiceController extends Controller
                     $q->where('owner_id', $pemilik->user_id);
                 });
             }
+        }
+
+        if ($request->has('kos_id') && $request->kos_id !== 'all') {
+            $query->whereHas('room', function($q) use ($request) {
+                $q->where('kos_id', $request->kos_id);
+            });
         }
 
         $tenancies = $query->get();
