@@ -43,6 +43,7 @@ export default function Index({ kos, pemilik, userRole }: Props) {
 
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [editingId, setEditingId] = useState<number | null>(null);
+    const [existingImage, setExistingImage] = useState<string | null>(null);
     const [editData, setEditData] = useState({
         owner_id: '',
         name: '',
@@ -56,6 +57,9 @@ export default function Index({ kos, pemilik, userRole }: Props) {
     const [confirmOpen, setConfirmOpen] = useState(false);
     const [deleteId, setDeleteId] = useState<number | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
+    const [typeFilter, setTypeFilter] = useState<string>('all');
+
+    const filteredKos = kos.filter((k) => typeFilter === 'all' || k.gender_type === typeFilter);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -63,12 +67,14 @@ export default function Index({ kos, pemilik, userRole }: Props) {
             onSuccess: () => {
                 reset();
                 setShowCreateModal(false);
+                setData('image', null);
             },
         });
     };
 
     const handleEdit = (item: Kos) => {
         setEditingId(item.id);
+        setExistingImage(item.image ?? null);
         setEditData({
             owner_id: item.owner_id.toString(),
             name: item.name,
@@ -82,6 +88,7 @@ export default function Index({ kos, pemilik, userRole }: Props) {
 
     const handleCancelEdit = () => {
         setEditingId(null);
+        setExistingImage(null);
         setEditData({
             owner_id: '',
             name: '',
@@ -97,6 +104,7 @@ export default function Index({ kos, pemilik, userRole }: Props) {
         router.post(`/admin/kos/${id}`, editData, {
             onSuccess: () => {
                 setEditingId(null);
+                setExistingImage(null);
                 setEditData({
                     owner_id: '',
                     name: '',
@@ -145,7 +153,17 @@ export default function Index({ kos, pemilik, userRole }: Props) {
         {
             accessorKey: 'address',
             header: 'Alamat',
-            cell: ({ row }) => <div className="max-w-[300px] truncate">{row.getValue('address')}</div>,
+            cell: ({ row }) => (
+                <a
+                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${row.getValue('name')} ${row.getValue('address')}`)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="max-w-[300px] truncate text-blue-600 hover:text-blue-800 hover:underline inline-block dark:text-blue-400 dark:hover:text-blue-300"
+                    title="Lihat di Google Maps"
+                >
+                    {row.getValue('address')}
+                </a>
+            ),
         },
         {
             accessorKey: 'gender_type',
@@ -199,7 +217,20 @@ export default function Index({ kos, pemilik, userRole }: Props) {
                 <div className="rounded-xl border border-sidebar-border/70 p-4 dark:border-sidebar-border">
                     <DataTable
                         columns={columns}
-                        data={kos}
+                        data={filteredKos}
+                        leftHeaderAction={
+                            <Select value={typeFilter} onValueChange={setTypeFilter}>
+                                <SelectTrigger className="w-[180px]">
+                                    <SelectValue placeholder="Type Kos" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">Type Kos</SelectItem>
+                                    <SelectItem value="putra">Putra</SelectItem>
+                                    <SelectItem value="putri">Putri</SelectItem>
+                                    <SelectItem value="campuran">Campuran</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        }
                         headerAction={
                             <Button onClick={() => setShowCreateModal(true)} className="bg-primary hover:bg-primary/90 text-white">
                                 <Plus className="h-4 w-4" />
@@ -287,6 +318,15 @@ export default function Index({ kos, pemilik, userRole }: Props) {
                                     accept="image/*"
                                     onChange={(e) => setData('image', e.target.files ? e.target.files[0] : null)}
                                 />
+                                {data.image && (
+                                    <div className="mt-2">
+                                        <img
+                                            src={URL.createObjectURL(data.image)}
+                                            alt="Preview"
+                                            className="h-32 w-auto object-cover rounded-md border border-sidebar-border"
+                                        />
+                                    </div>
+                                )}
                                 {errors.image && <p className="text-sm text-red-600">{errors.image}</p>}
                             </div>
                             <div className="flex justify-end gap-2">
@@ -374,6 +414,24 @@ export default function Index({ kos, pemilik, userRole }: Props) {
                                     accept="image/*"
                                     onChange={(e) => setEditData({ ...editData, image: e.target.files ? e.target.files[0] : null })}
                                 />
+                                {editData.image ? (
+                                    <div className="mt-2">
+                                        <img
+                                            src={URL.createObjectURL(editData.image)}
+                                            alt="Preview Baru"
+                                            className="h-32 w-auto object-cover rounded-md border border-sidebar-border"
+                                        />
+                                    </div>
+                                ) : existingImage ? (
+                                    <div className="mt-2 text-sm text-muted-foreground">
+                                        <p className="mb-1">Gambar saat ini:</p>
+                                        <img
+                                            src={`/storage/${existingImage}`}
+                                            alt="Preview Saat Ini"
+                                            className="h-32 w-auto object-cover rounded-md border border-sidebar-border opacity-80"
+                                        />
+                                    </div>
+                                ) : null}
                             </div>
                             <div className="flex justify-end gap-2">
                                 <Button type="button" variant="outline" onClick={handleCancelEdit}>
