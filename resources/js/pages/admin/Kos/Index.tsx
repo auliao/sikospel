@@ -1,5 +1,5 @@
 import { Head, useForm, router } from '@inertiajs/react';
-import { Plus, Trash2, Edit, MoreHorizontal } from 'lucide-react';
+import { Plus, Trash2, Edit, MoreHorizontal, X } from 'lucide-react';
 import { useState } from 'react';
 import { ColumnDef } from '@tanstack/react-table';
 import { Button } from '@/components/ui/button';
@@ -43,6 +43,7 @@ export default function Index({ kos, pemilik, userRole }: Props) {
 
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [editingId, setEditingId] = useState<number | null>(null);
+    const [existingImage, setExistingImage] = useState<string | null>(null);
     const [editData, setEditData] = useState({
         owner_id: '',
         name: '',
@@ -56,6 +57,8 @@ export default function Index({ kos, pemilik, userRole }: Props) {
     const [confirmOpen, setConfirmOpen] = useState(false);
     const [deleteId, setDeleteId] = useState<number | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
+    const [filterGender, setFilterGender] = useState<string>('all');
+    const [previewImage, setPreviewImage] = useState<string | null>(null);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -63,12 +66,14 @@ export default function Index({ kos, pemilik, userRole }: Props) {
             onSuccess: () => {
                 reset();
                 setShowCreateModal(false);
+                setPreviewImage(null);
             },
         });
     };
 
     const handleEdit = (item: Kos) => {
         setEditingId(item.id);
+        setPreviewImage(item.image ? `/storage/${item.image}` : null);
         setEditData({
             owner_id: item.owner_id.toString(),
             name: item.name,
@@ -82,6 +87,7 @@ export default function Index({ kos, pemilik, userRole }: Props) {
 
     const handleCancelEdit = () => {
         setEditingId(null);
+        setPreviewImage(null);
         setEditData({
             owner_id: '',
             name: '',
@@ -97,6 +103,7 @@ export default function Index({ kos, pemilik, userRole }: Props) {
         router.post(`/admin/kos/${id}`, editData, {
             onSuccess: () => {
                 setEditingId(null);
+                setPreviewImage(null);
                 setEditData({
                     owner_id: '',
                     name: '',
@@ -108,6 +115,39 @@ export default function Index({ kos, pemilik, userRole }: Props) {
                 });
             },
         });
+    };
+
+    const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>, isEdit: boolean = false) => {
+        const file = e.target.files ? e.target.files[0] : null;
+        if (file) {
+            const url = URL.createObjectURL(file);
+            setPreviewImage(url);
+            if (isEdit) {
+                setEditData({ ...editData, image: file });
+            } else {
+                setData('image', file);
+            }
+        } else {
+            if (!isEdit) setPreviewImage(null);
+            if (isEdit) {
+                setEditData({ ...editData, image: null });
+            } else {
+                setData('image', null);
+            }
+        }
+    };
+
+    const handleRemoveImage = (isEdit: boolean = false) => {
+        setPreviewImage(null);
+        if (isEdit) {
+            setEditData({ ...editData, image: null });
+            const fileInput = document.getElementById('edit-image') as HTMLInputElement;
+            if (fileInput) fileInput.value = '';
+        } else {
+            setData('image', null);
+            const fileInput = document.getElementById('image') as HTMLInputElement;
+            if (fileInput) fileInput.value = '';
+        }
     };
 
     const confirmDelete = (id: number) => {
@@ -145,7 +185,17 @@ export default function Index({ kos, pemilik, userRole }: Props) {
         {
             accessorKey: 'address',
             header: 'Alamat',
-            cell: ({ row }) => <div className="max-w-[300px] truncate">{row.getValue('address')}</div>,
+            cell: ({ row }) => (
+                <a
+                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${row.getValue('name')} ${row.getValue('address')}`)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="max-w-[300px] truncate text-blue-600 hover:text-blue-800 hover:underline inline-block dark:text-blue-400 dark:hover:text-blue-300"
+                    title="Lihat di Google Maps"
+                >
+                    {row.getValue('address')}
+                </a>
+            ),
         },
         {
             accessorKey: 'gender_type',
@@ -199,9 +249,25 @@ export default function Index({ kos, pemilik, userRole }: Props) {
                 <div className="rounded-xl border border-sidebar-border/70 p-4 dark:border-sidebar-border">
                     <DataTable
                         columns={columns}
-                        data={kos}
+                        data={kos.filter(k => filterGender === 'all' ? true : k.gender_type === filterGender)}
+                        leftHeaderAction={
+                            <Select value={filterGender} onValueChange={setFilterGender}>
+                                <SelectTrigger className="w-[220px]">
+                                    <SelectValue placeholder="Filter Tipe Kos" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">Semua Tipe Kos</SelectItem>
+                                    <SelectItem value="putra">Putra</SelectItem>
+                                    <SelectItem value="putri">Putri</SelectItem>
+                                    <SelectItem value="campuran">Campuran</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        }
                         headerAction={
-                            <Button onClick={() => setShowCreateModal(true)} className="bg-primary hover:bg-primary/90 text-white">
+                            <Button onClick={() => {
+                                setShowCreateModal(true);
+                                setPreviewImage(null);
+                            }} className="bg-primary hover:bg-primary/90 text-white">
                                 <Plus className="h-4 w-4" />
                                 Tambah
                             </Button>
@@ -285,8 +351,21 @@ export default function Index({ kos, pemilik, userRole }: Props) {
                                     id="image"
                                     type="file"
                                     accept="image/*"
-                                    onChange={(e) => setData('image', e.target.files ? e.target.files[0] : null)}
+                                    onChange={(e) => handleImageChange(e, false)}
+                                    className="mb-2"
                                 />
+                                {previewImage && (
+                                    <div className="relative inline-block mt-2">
+                                        <img src={previewImage} alt="Preview" className="h-32 w-auto object-cover rounded-md" />
+                                        <button
+                                            type="button"
+                                            onClick={() => handleRemoveImage(false)}
+                                            className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow-md hover:bg-red-600 transition-colors"
+                                        >
+                                            <X className="h-3 w-3" />
+                                        </button>
+                                    </div>
+                                )}
                                 {errors.image && <p className="text-sm text-red-600">{errors.image}</p>}
                             </div>
                             <div className="flex justify-end gap-2">
@@ -372,8 +451,21 @@ export default function Index({ kos, pemilik, userRole }: Props) {
                                     id="edit-image"
                                     type="file"
                                     accept="image/*"
-                                    onChange={(e) => setEditData({ ...editData, image: e.target.files ? e.target.files[0] : null })}
+                                    onChange={(e) => handleImageChange(e, true)}
+                                    className="mb-2"
                                 />
+                                {previewImage && (
+                                    <div className="relative inline-block mt-2">
+                                        <img src={previewImage} alt="Preview" className="h-32 w-auto object-cover rounded-md" />
+                                        <button
+                                            type="button"
+                                            onClick={() => handleRemoveImage(true)}
+                                            className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow-md hover:bg-red-600 transition-colors"
+                                        >
+                                            <X className="h-3 w-3" />
+                                        </button>
+                                    </div>
+                                )}
                             </div>
                             <div className="flex justify-end gap-2">
                                 <Button type="button" variant="outline" onClick={handleCancelEdit}>

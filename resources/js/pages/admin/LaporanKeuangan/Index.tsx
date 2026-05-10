@@ -185,7 +185,7 @@ export default function Index({ payments, stats, filters, kosList, methods }: Pr
 
             <div className="space-y-6 p-4 md:p-8">
                 <div>
-                    <h1 className="text-3xl font-bold text-[#664229]">Laporan Keuangan</h1>
+                    <h1 className="text-2xl font-bold">Laporan Keuangan</h1>
                     <p className="text-muted-foreground mt-1">Rekapitulasi seluruh pemasukan dari pembayaran tagihan kos yang berstatus lunas.</p>
                 </div>
 

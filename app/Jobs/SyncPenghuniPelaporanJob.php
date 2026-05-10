@@ -46,7 +46,10 @@ class SyncPenghuniPelaporanJob implements ShouldQueue
     public function handle(): void
     {
         try {
-            $request = Http::timeout(15)->withToken(env('API_PELAPORAN_TOKEN'));
+            $url = config('services.pelaporan.url') . '/sync/penghuni';
+            $token = config('services.pelaporan.token');
+
+            $request = Http::timeout(15)->withToken($token)->acceptJson();
 
             $data = [
                 'id_penghuni'    => $this->idPenghuni,
@@ -72,10 +75,7 @@ class SyncPenghuniPelaporanJob implements ShouldQueue
                 );
             }
 
-            $url = config('services.pelaporan.url') . '/sync/penghuni';
-            $token = config('services.pelaporan.token');
-
-            $response = $request->withToken($token)->acceptJson()->post($url, $data);
+            $response = $request->post($url, $data);
 
             if ($response->successful() && $response->json('success') === true) {
                 Log::info('Berhasil sync profil PENGHUNI murni via Job ke pelaporan');

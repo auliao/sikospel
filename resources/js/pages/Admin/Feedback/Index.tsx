@@ -135,7 +135,7 @@ export default function Index({ feedbacks }: Props) {
             <div className="flex h-full flex-1 flex-col gap-6 p-4 md:p-6 overflow-x-hidden">
                 <div className="flex items-center justify-between">
                     <div>
-                        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 uppercase tracking-tight">Kritik & Saran</h1>
+                        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 tracking-tight">Kritik & Saran</h1>
                         <p className="text-sm text-muted-foreground mt-1">
                             Daftar masukan dari penghuni saat melakukan pembayaran.
                         </p>

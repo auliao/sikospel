@@ -33,7 +33,7 @@ export default function MainLayout({ children, breadcrumbs = [] }: Props) {
 
     const handleSearch = (e: React.FormEvent) => {
         e.preventDefault();
-        router.get('/', { search }, { preserveState: true });
+        router.get('/pencarian-kos', { search }, { preserveState: true });
     };
 
     return (

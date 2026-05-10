@@ -67,7 +67,9 @@ class SyncPendapatanPelaporanJob implements ShouldQueue
         $url = config('services.pelaporan.url') . '/sync/pendapatan';
         $token = config('services.pelaporan.token');
 
-        Log::info('DEBUG: Menghubungi URL Pelaporan: ' . $url);
+        $url = config('services.pelaporan.url') . '/sync/pendapatan';
+        $token = config('services.pelaporan.token');
+
         $response = Http::timeout(30)->withToken($token)
             ->post($url, [
                 'id_kos'             => $this->idKos,

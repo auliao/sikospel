@@ -39,10 +39,16 @@ export default function Show({ kos, typeKamars }: Props) {
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent flex flex-col justify-end p-6 md:p-10 text-white">
                         <h1 className="text-3xl md:text-5xl font-bold mb-2">{kos.name}</h1>
-                        <p className="flex items-center text-sm md:text-lg opacity-90 capitalize">
+                        <a
+                            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${kos.name} ${kos.address}`)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center text-sm md:text-lg opacity-90 capitalize hover:opacity-100 hover:text-blue-200 transition-all w-fit"
+                            title="Lihat di Google Maps"
+                        >
                             <MapPin className="w-4 h-4 md:w-5 md:h-5 mr-2" />
-                            {kos.address}
-                        </p>
+                            <span className="underline decoration-dotted underline-offset-4">{kos.address}</span>
+                        </a>
                     </div>
                     <div className="absolute bottom-6 right-6 md:bottom-10 md:right-10 flex gap-2">
                         <Badge className={`text-sm md:text-base px-4 py-1.5 shadow-lg border-none capitalize ${kos.gender_type === 'putra' ? 'bg-blue-600 text-white' :

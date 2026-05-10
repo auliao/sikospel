@@ -76,9 +76,17 @@ interface Invoice {
 
 interface Props {
     invoices: Invoice[];
+    koses?: Kos[];
+    filters?: { kos_id?: string };
 }
 
-export default function Tagihan({ invoices = [] }: Props) {
+export default function Tagihan({ invoices = [], koses = [], filters = {} }: Props) {
+    const [kosFilter, setKosFilter] = useState<string>(filters.kos_id || 'all');
+
+    const handleKosFilterChange = (value: string) => {
+        setKosFilter(value);
+        router.get('/admin/tagihan', { kos_id: value }, { preserveState: true, preserveScroll: true });
+    };
     const [selectedProof, setSelectedProof] = useState<string | null>(null);
     const [confirmPaidId, setConfirmPaidId] = useState<number | null>(null);
     const [isMarkingPaid, setIsMarkingPaid] = useState(false);
@@ -88,6 +96,7 @@ export default function Tagihan({ invoices = [] }: Props) {
     const [isGenerating, setIsGenerating] = useState(false);
     const [genMonth, setGenMonth] = useState(new Date().getMonth() + 1);
     const [genYear, setGenYear] = useState(new Date().getFullYear());
+    const [genKosId, setGenKosId] = useState<string>(filters.kos_id || 'all');
 
     const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
     const [isUpdating, setIsUpdating] = useState(false);
@@ -132,6 +141,7 @@ export default function Tagihan({ invoices = [] }: Props) {
         router.post(`/admin/tagihan/generate`, {
             month: genMonth,
             year: genYear,
+            kos_id: genKosId,
         }, {
             onSuccess: () => {
                 setIsGenerateDialogOpen(false);
@@ -325,6 +335,19 @@ export default function Tagihan({ invoices = [] }: Props) {
                         </p>
                     </div>
                     <div className="flex items-center gap-2">
+                        {koses && koses.length > 0 && (
+                            <Select value={kosFilter} onValueChange={handleKosFilterChange}>
+                                <SelectTrigger className="w-[180px] bg-white dark:bg-[#161615]">
+                                    <SelectValue placeholder="Semua Kos" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">Semua Kos</SelectItem>
+                                    {koses.map(k => (
+                                        <SelectItem key={k.id} value={k.id.toString()}>{k.name}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        )}
                         <Button
                             onClick={() => setIsGenerateDialogOpen(true)}
                             className="bg-[#664229] hover:bg-[#523521] text-white flex items-center gap-2"
@@ -425,6 +448,22 @@ export default function Tagihan({ invoices = [] }: Props) {
                             </DialogDescription>
                         </DialogHeader>
                         <div className="grid gap-4 py-4">
+                            {koses && koses.length > 0 && (
+                                <div className="space-y-2">
+                                    <Label>Pilih Kos</Label>
+                                    <Select value={genKosId} onValueChange={setGenKosId}>
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="Semua Kos" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="all">Semua Kos</SelectItem>
+                                            {koses.map(k => (
+                                                <SelectItem key={k.id} value={k.id.toString()}>{k.name}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            )}
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-2">
                                     <Label>Bulan</Label>
