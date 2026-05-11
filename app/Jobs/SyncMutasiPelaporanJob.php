@@ -11,9 +11,6 @@ class SyncMutasiPelaporanJob implements ShouldQueue
 {
     use Queueable;
 
-    public $tries = 3;
-    public $backoff = [300, 600, 1800];
-
     protected $idPenghuni;
     protected $nik;
     protected $nama;
@@ -97,11 +94,9 @@ class SyncMutasiPelaporanJob implements ShouldQueue
             } else {
                 Log::error('Gagal sync mutasi ' . strtoupper($this->jenisMutasi) . ' via Job ke pelaporan. ' . 
                     'Status: ' . $response->status() . ' - Response: ' . $response->body());
-                throw new \Exception('API Sync Failed with status: ' . $response->status());
             }
         } catch (\Exception $e) {
             Log::error('Job API Sync Mutasi gagal: ' . $e->getMessage());
-            throw $e;
         }
     }
 }

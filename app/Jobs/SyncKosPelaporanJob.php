@@ -11,9 +11,6 @@ class SyncKosPelaporanJob implements ShouldQueue
 {
     use Queueable;
 
-    public $tries = 3;
-    public $backoff = [300, 600, 1800];
-
     protected $idKos;
     protected $idPemilik;
     protected $namaPemilik;
@@ -66,11 +63,9 @@ class SyncKosPelaporanJob implements ShouldQueue
             } else {
                 Log::error('Gagal sync data KOS via Job ke pelaporan. ' . 
                     'Status: ' . $response->status() . ' - Response: ' . $response->body());
-                throw new \Exception('API Sync Failed with status: ' . $response->status());
             }
         } catch (\Exception $e) {
             Log::error('Job API Sync Kos gagal: ' . $e->getMessage());
-            throw $e;
         }
     }
 }

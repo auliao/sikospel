@@ -11,9 +11,6 @@ class SyncPenghuniPelaporanJob implements ShouldQueue
 {
     use Queueable;
 
-    public $tries = 3;
-    public $backoff = [300, 600, 1800];
-
     protected $idPenghuni;
     protected $nik;
     protected $nama;
@@ -83,13 +80,10 @@ class SyncPenghuniPelaporanJob implements ShouldQueue
             if ($response->successful() && $response->json('success') === true) {
                 Log::info('Berhasil sync profil PENGHUNI murni via Job ke pelaporan');
             } else {
-                $errorMessage = $response->json('message') ?? 'Unknown API Error';
-                Log::error('Gagal sync profil PENGHUNI murni via Job ke pelaporan: ' . $errorMessage);
-                throw new \Exception('API Sync Failed: ' . $errorMessage);
+                Log::error('Gagal sync profil PENGHUNI murni via Job ke pelaporan: ' . $response->json('message'));
             }
         } catch (\Exception $e) {
             Log::error('Job API Sync Penghuni gagal: ' . $e->getMessage());
-            throw $e;
         }
     }
 }

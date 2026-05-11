@@ -11,9 +11,6 @@ class SyncPendapatanPelaporanJob implements ShouldQueue
 {
     use Queueable;
 
-    public $tries = 3;
-    public $backoff = [300, 600, 1800];
-
     protected $idKos;
     protected $idPemilik;
     protected $namaKos;
@@ -67,6 +64,8 @@ class SyncPendapatanPelaporanJob implements ShouldQueue
                 // fall back to original if parsing fails
             }
         }
+        $url = config('services.pelaporan.url') . '/sync/pendapatan';
+        $token = config('services.pelaporan.token');
 
         $url = config('services.pelaporan.url') . '/sync/pendapatan';
         $token = config('services.pelaporan.token');
