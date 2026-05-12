@@ -177,9 +177,10 @@ export default function Index({ kos, pemilik, userRole }: Props) {
             cell: ({ row }) => <div className="font-medium text-primary">{row.getValue('name')}</div>,
         },
         {
-            accessorKey: 'owner',
+            accessorFn: row => row.owner?.name,
+            id: 'owner',
             header: 'Pemilik',
-            cell: ({ row }) => <div>{row.original.owner.name}</div>,
+            cell: ({ row }) => <div>{row.original.owner?.name}</div>,
         },
         {
             accessorKey: 'address',
